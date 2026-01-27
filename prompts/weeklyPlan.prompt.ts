@@ -1,11 +1,10 @@
-export function buildWeeklyPlanPrompt(input: {
-  age: number;
-  height_cm: number;
-  weight_kg: number;
-  goal: string;
-}) {
-  return `
-You are a backend service, not a chat assistant.
+import { UserProfile } from "@/types";
+import { MASTER_META_PROMPT } from "./master.prompt";
+
+export function buildWeeklyPlanPrompt(profile: UserProfile) {
+  return `${MASTER_META_PROMPT}
+
+You are now in PHASE 2 — WEEKLY TRAINING & NUTRITION PLAN.
 
 Your task is to OUTPUT VALID JSON ONLY.
 
@@ -19,14 +18,15 @@ ABSOLUTE RULES:
 
 If you break JSON, the system will reject your output.
 
-JSON SCHEMA (MUST MATCH EXACTLY):
+REQUIRED JSON SCHEMA (MUST MATCH EXACTLY):
 
 {
   "profile_summary": {
     "age": number,
     "height_cm": number,
     "weight_kg": number,
-    "goal": string
+    "goal": string,
+    "experience_level": string
   },
   "weekly_plan": {
     "days": [
@@ -43,22 +43,63 @@ JSON SCHEMA (MUST MATCH EXACTLY):
         ]
       }
     ]
+  },
+  "nutrition_plan": {
+    "daily_calories": number,
+    "macros": {
+      "protein_g": number,
+      "carbs_g": number,
+      "fat_g": number
+    }
   }
 }
 
-CONSTRAINTS:
-- 3 to 5 training days
-- Beginner friendly
-- Gym-based
-- Realistic exercises
-- No extreme volume
+PLANNING RULES:
+- 3–5 training days (based on user's training_days_per_week: ${profile.training_days_per_week})
+- Beginner-safe volume unless advanced (level: ${profile.experience_level})
+- ${profile.gym_access ? "Gym-based" : "Home-based"} exercises
+- No extreme calorie deficits or bulks
+- Exercises must be realistic and progressive
+- Session duration target: ${profile.session_duration_minutes} minutes
 
-USER DATA:
-Age: ${input.age}
-Height: ${input.height_cm}
-Weight: ${input.weight_kg}
-Goal: ${input.goal}
+USER PROFILE DATA:
+
+Goals:
+- Primary goal: ${profile.goal}
+- Timeframe: ${profile.goal_timeframe_weeks || "Not specified"} weeks
+
+Body & Health:
+- Age: ${profile.age}
+- Sex: ${profile.sex}
+- Height: ${profile.height_cm} cm
+- Weight: ${profile.weight_kg} kg
+- Injury status: ${profile.injury_status ? `Yes - ${profile.injury_description || "Not described"}` : "No"}
+${profile.medical_limitations ? `- Medical limitations: ${profile.medical_limitations}` : ""}
+
+Experience & Availability:
+- Training level: ${profile.experience_level}
+- Gym access: ${profile.gym_access ? "Yes" : "No"}
+- Available training days per week: ${profile.training_days_per_week}
+- Session duration: ${profile.session_duration_minutes} minutes
+
+Nutrition Preferences:
+- Diet type: ${profile.diet_type}
+${profile.allergies_restrictions ? `- Allergies/restrictions: ${profile.allergies_restrictions}` : ""}
+- Meals per day: ${profile.meals_per_day}
+- Budget sensitivity: ${profile.budget_sensitivity}
+
+Lifestyle & Recovery:
+- Average sleep: ${profile.average_sleep_hours} hours
+- Job activity: ${profile.job_activity_level}
+- Daily movement: ${profile.daily_movement_level}
+
+CALCULATE NUTRITION:
+- Base calories on goal: ${profile.goal}
+- Protein: 1.6-2.2g per kg body weight for muscle gain/maintenance
+- Adjust carbs and fats based on diet type: ${profile.diet_type}
+- Ensure safe deficit/surplus (max ±500 kcal for beginners, ±750 for advanced)
 
 RETURN JSON ONLY.
-`;
+NO OTHER TEXT.`;
+
 }

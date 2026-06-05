@@ -121,6 +121,41 @@ export async function scheduleMonthlyReviewNotification(): Promise<string | null
 }
 
 /**
+ * Schedule a yearly review notification
+ */
+export async function scheduleYearlyReviewNotification(): Promise<string | null> {
+  try {
+    const hasPermission = await requestNotificationPermissions();
+    if (!hasPermission) {
+      return null;
+    }
+
+    const notificationId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "🗓️ Yearly Review Time!",
+        body: "Check your long-term progress and set your next year focus",
+        sound: true,
+        data: { type: "yearly_review" },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+        month: 1,
+        day: 1,
+        hour: 9,
+        minute: 0,
+        repeats: true,
+      },
+    });
+
+    console.log("🔔 Yearly review notification scheduled: January 1st at 09:00");
+    return notificationId;
+  } catch (error) {
+    console.error("Error scheduling yearly review:", error);
+    return null;
+  }
+}
+
+/**
  * Schedule session reminder notifications
  */
 export async function scheduleSessionReminders(trainingDays: string[]): Promise<string[]> {

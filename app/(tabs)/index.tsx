@@ -1,9 +1,9 @@
 import { CompleteWeeklyPlan } from "@/types";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
-import { requestNotificationPermissions, scheduleMonthlyReviewNotification, scheduleWeeklyReviewNotification } from "../../services/notifications";
+import { requestNotificationPermissions, scheduleMonthlyReviewNotification, scheduleWeeklyReviewNotification, scheduleYearlyReviewNotification } from "../../services/notifications";
 import { supabase } from "../../services/supabase";
 
 export default function HomeScreen() {
@@ -11,24 +11,8 @@ export default function HomeScreen() {
   const [currentPlan, setCurrentPlan] = useState<CompleteWeeklyPlan | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
-  useEffect(() => {
-    loadUser();
-    checkNotifications();
-  }, []);
-
-  const loadUser = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    setUser(user);
-
-    if (user) {
-      loadCurrentPlan();
-    }
-  };
-
-  const loadCurrentPlan = async () => {
-    if (!user) return;
+  const loadCurrentPlan = useCallback(async (userId?: string) => {
+    if (!userId) return;
 
     const weekStart = new Date();
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
@@ -38,16 +22,15 @@ export default function HomeScreen() {
     let { data } = await supabase
       .from("training_plans")
       .select("plan_json")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .eq("week_start", weekStartStr)
       .single();
 
-    // If no plan for current week, get the most recent plan
     if (!data) {
       const { data: recentPlan } = await supabase
         .from("training_plans")
         .select("plan_json")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .order("week_start", { ascending: false })
         .limit(1)
         .single();
@@ -60,18 +43,35 @@ export default function HomeScreen() {
     if (data) {
       setCurrentPlan(data.plan_json);
     }
-  };
+  }, []);
 
-  const checkNotifications = async () => {
+  const loadUser = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    setUser(user);
+
+    if (user) {
+      loadCurrentPlan(user.id);
+    }
+  }, [loadCurrentPlan]);
+
+  const checkNotifications = useCallback(async () => {
     const hasPermission = await requestNotificationPermissions();
     setNotificationsEnabled(hasPermission);
-  };
+  }, []);
+
+  useEffect(() => {
+    loadUser();
+    checkNotifications();
+  }, [loadUser, checkNotifications]);
 
   const enableNotifications = async () => {
     const enabled = await requestNotificationPermissions();
     if (enabled) {
       await scheduleWeeklyReviewNotification();
       await scheduleMonthlyReviewNotification();
+      await scheduleYearlyReviewNotification();
       setNotificationsEnabled(true);
       Alert.alert("Success", "Notifications enabled! You'll get reminders for reviews and training sessions.");
     } else {
@@ -162,7 +162,7 @@ export default function HomeScreen() {
           Welcome Back
         </Text>
         <Text style={{ color: "#999", fontSize: 16, marginBottom: 32 }}>
-          Let's crush your fitness goals today
+          Train smart, recover well, and keep the streak alive
         </Text>
 
         {/* Quick Actions */}
@@ -211,6 +211,14 @@ export default function HomeScreen() {
           onPress={() => router.push("/monthly-review")}
         />
 
+        <Card
+          title="Yearly Review"
+          description="Look back at the full year and set the next-year focus"
+          icon="calendar"
+          color="#34C759"
+          onPress={() => router.push("/yearly-review")}
+        />
+
         {/* Notifications */}
         <Text style={{ color: "#fff", fontSize: 20, fontWeight: "bold", marginTop: 24, marginBottom: 16 }}>
           Notifications
@@ -257,6 +265,14 @@ export default function HomeScreen() {
             </View>
           </View>
         )}
+
+        <Card
+          title="Yearly reminder"
+          description="Keep your annual review on the calendar so long-term progress stays visible."
+          icon="calendar-outline"
+          color="#af52de"
+          onPress={() => router.push("/yearly-review")}
+        />
 
         {/* Stats */}
         {currentPlan && (

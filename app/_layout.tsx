@@ -24,6 +24,7 @@ export default function RootLayout() {
         <Stack.Screen name="session" options={{ title: "Training Session" }} />
         <Stack.Screen name="weekly-review" options={{ title: "Weekly Review" }} />
         <Stack.Screen name="monthly-review" options={{ title: "Monthly Review" }} />
+        <Stack.Screen name="yearly-review" options={{ title: "Yearly Review" }} />
       </Stack>
       <StatusBar style="light" />
     </ThemeProvider>

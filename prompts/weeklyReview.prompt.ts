@@ -1,4 +1,5 @@
 import { MASTER_META_PROMPT } from "./master.prompt";
+import { WEEKLY_REVIEW_PROMPT_VERSION } from "./versions";
 
 export interface WeeklyReviewInputs {
   plannedSessions: number;
@@ -33,6 +34,8 @@ export function buildWeeklyReviewPrompt(inputs: WeeklyReviewInputs) {
   const adherencePercent = Math.round((inputs.completedSessions / inputs.plannedSessions) * 100);
 
   return `${MASTER_META_PROMPT}
+
+PROMPT_VERSION: ${WEEKLY_REVIEW_PROMPT_VERSION}
 
 You are now in PHASE 4 — WEEKLY REVIEW.
 

@@ -1,13 +1,16 @@
 import { MonthlyReview } from "@/types";
 import { router } from "expo-router";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ScrollView, Text, View, TouchableOpacity, Alert, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { buildMonthlyReviewPrompt } from "../prompts/monthlyReview.prompt";
+import { MONTHLY_REVIEW_PROMPT_VERSION } from "../prompts/versions";
 import { callOpenRouter } from "../services/openrouter";
+import { recordAIReviewSnapshot, recordBodyMetricsSnapshot } from "../services/history";
 import { supabase } from "../services/supabase";
 import { extractJson } from "../utils/json";
 import { scheduleMonthlyReviewNotification } from "../services/notifications";
+import { validateMonthlyReview } from "../utils/ai-validation";
 
 export default function MonthlyReviewScreen() {
   const [loading, setLoading] = useState(false);
@@ -182,7 +185,7 @@ export default function MonthlyReviewScreen() {
       });
 
       const llmResponse = await callOpenRouter(prompt, undefined, 0.2);
-      const reviewData: MonthlyReview = extractJson(llmResponse);
+      const reviewData: MonthlyReview = validateMonthlyReview(extractJson(llmResponse));
 
       setReview(reviewData);
       setMsg("");
@@ -196,11 +199,25 @@ export default function MonthlyReviewScreen() {
         review_json: reviewData,
       });
 
+      await recordAIReviewSnapshot({
+        user_id: user.id,
+        review_type: "monthly",
+        period_start: monthStart.toISOString().slice(0, 10),
+        prompt_version: MONTHLY_REVIEW_PROMPT_VERSION,
+        review_json: reviewData,
+      });
+
       // Update profile weight
       await supabase
         .from("profiles")
         .update({ weight_kg: currentWeightNum })
         .eq("user_id", user.id);
+
+      await recordBodyMetricsSnapshot({
+        user_id: user.id,
+        weight_kg: currentWeightNum,
+        source: "monthly_review",
+      });
     } catch (error: any) {
       setMsg(`Error: ${error.message}`);
       console.error(error);

@@ -136,6 +136,75 @@ export interface MonthlyReview {
   recommended_adjustments: RecommendedAdjustments;
 }
 
+// Yearly Review Types
+export interface YearlySummary {
+  total_sessions_completed: number;
+  total_active_weeks: number;
+  average_adherence: number;
+  weight_change_kg: number;
+  strength_trend: Trend;
+  fatigue_trend: Trend;
+  best_months: string[];
+  weakest_months: string[];
+  fitness_fact?: string;
+}
+
+export interface YearlyPlan {
+  focus: string;
+  priorities: string[];
+  training_days_per_week: number;
+  nutrition_direction: string;
+}
+
+export interface YearlyReview {
+  yearly_summary: YearlySummary;
+  next_year_plan: YearlyPlan;
+}
+
+export interface YearlyReviewInputs {
+  startWeight: number;
+  currentWeight: number;
+  totalSessionsCompleted: number;
+  totalActiveWeeks: number;
+  averageAdherence: number;
+  strengthTrend: Trend;
+  fatigueTrend: Trend;
+  bestMonths: string[];
+  weakestMonths: string[];
+  monthlyReviews: MonthlyReview[];
+  weeklyReviews: WeeklyReview[];
+}
+
+export interface BodyMetricsSnapshot {
+  user_id: string;
+  weight_kg: number;
+  height_cm?: number;
+  body_fat_percent?: number;
+  muscle_mass_kg?: number;
+  notes?: string;
+  source?: "onboarding" | "manual" | "monthly_review" | "system";
+  recorded_at?: string;
+}
+
+export interface NutritionLog {
+  user_id: string;
+  date: string;
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  notes?: string;
+}
+
+export interface AIReviewSnapshot {
+  user_id: string;
+  review_type: "weekly" | "monthly" | "yearly";
+  period_start: string;
+  period_end?: string;
+  prompt_version: string;
+  review_json: WeeklyReview | MonthlyReview | YearlyReview;
+}
+
 // Fatigue Calculation
 export interface FatigueInputs {
   rpe_trends: number[];

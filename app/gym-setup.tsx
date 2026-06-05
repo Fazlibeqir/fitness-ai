@@ -93,7 +93,7 @@ export default function GymSetupScreen() {
       </Text>
 
       <Text style={{ color: "#fff", marginBottom: 8, fontSize: 14 }}>
-        Setting your gym location allows the app to verify you're at the gym before starting training sessions. This helps ensure accurate progress tracking.
+        Setting your gym location allows the app to verify you&apos;re at the gym before starting training sessions. This helps ensure accurate progress tracking.
       </Text>
 
       <View style={{ marginTop: 24, marginBottom: 16 }}>

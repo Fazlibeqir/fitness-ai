@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useState, useEffect } from "react";
 import { ScrollView, Text, View, Button, TextInput, Alert, ActivityIndicator } from "react-native";
 import { supabase } from "../services/supabase";
-import { verifyGymLocation, requestLocationPermission, getCurrentLocation } from "../services/location";
+import { verifyGymLocation } from "../services/location";
 
 export default function SessionScreen() {
   const { day, plan } = useLocalSearchParams();

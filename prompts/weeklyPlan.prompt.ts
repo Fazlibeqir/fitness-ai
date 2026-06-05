@@ -1,8 +1,11 @@
 import { UserProfile } from "@/types";
 import { MASTER_META_PROMPT } from "./master.prompt";
+import { WEEKLY_PLAN_PROMPT_VERSION } from "./versions";
 
 export function buildWeeklyPlanPrompt(profile: UserProfile) {
   return `${MASTER_META_PROMPT}
+
+PROMPT_VERSION: ${WEEKLY_PLAN_PROMPT_VERSION}
 
 You are now in PHASE 2 — WEEKLY TRAINING & NUTRITION PLAN.
 

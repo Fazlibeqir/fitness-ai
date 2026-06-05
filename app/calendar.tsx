@@ -39,7 +39,7 @@ export default function CalendarScreen() {
         const cals = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
         setCalendars(cals.filter((cal) => cal.allowsModifications));
       }
-    } catch (error) {
+    } catch {
       Alert.alert("Error", "Failed to request calendar permission");
     }
   };
@@ -147,11 +147,14 @@ export default function CalendarScreen() {
       >
         Calendar Export
       </Text>
+      <Text style={{ color: "#9ca3af", marginBottom: 24 }}>
+        Writable calendars: {calendars.length || 0}
+      </Text>
 
       {/* Weekly Schedule View */}
       <View style={{ marginBottom: 32 }}>
         <Text style={{ color: "#fff", fontSize: 18, fontWeight: "bold", marginBottom: 16 }}>
-          This Week's Schedule
+          This Week&apos;s Schedule
         </Text>
         {parsed.weekly_plan.days.map((day: TrainingDay) => {
           const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];

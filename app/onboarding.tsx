@@ -6,8 +6,10 @@ import { useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { buildWeeklyPlanPrompt } from "../prompts/weeklyPlan.prompt";
 import { callWeeklyPlanner } from "../services/openrouter";
+import { recordBodyMetricsSnapshot } from "../services/history";
 import { supabase } from "../services/supabase";
 import { extractJson } from "../utils/json";
+import { validateWeeklyPlan } from "../utils/ai-validation";
 
 type OnboardingStep = 
   | "goals"
@@ -136,8 +138,8 @@ export default function Onboarding() {
     try {
       const prompt = buildWeeklyPlanPrompt(profile);
       llmResponse = await callWeeklyPlanner(prompt);
-      plan = extractJson(llmResponse);
-    } catch (e) {
+      plan = validateWeeklyPlan(extractJson(llmResponse));
+    } catch {
       try {
         const repairPrompt = `
 The previous output was INVALID JSON.
@@ -148,7 +150,7 @@ INVALID OUTPUT:
 ${llmResponse}
 `;
         const fixed = await callWeeklyPlanner(repairPrompt);
-        plan = extractJson(fixed);
+        plan = validateWeeklyPlan(extractJson(fixed));
       } catch {
         setMsg("Failed to generate plan. Please try again.");
         setLoading(false);
@@ -173,6 +175,13 @@ ${llmResponse}
       user_id: user.id,
       week_start: weekStartStr,
       plan_json: plan,
+    });
+
+    await recordBodyMetricsSnapshot({
+      user_id: user.id,
+      weight_kg: profile.weight_kg,
+      height_cm: profile.height_cm,
+      source: "onboarding",
     });
 
     (router.replace as any)("/(tabs)/");

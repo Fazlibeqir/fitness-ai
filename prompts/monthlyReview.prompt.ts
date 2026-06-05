@@ -1,4 +1,5 @@
 import { MASTER_META_PROMPT } from "./master.prompt";
+import { MONTHLY_REVIEW_PROMPT_VERSION } from "./versions";
 
 export interface MonthlyReviewInputs {
   startingWeight: number;
@@ -31,6 +32,8 @@ export function buildMonthlyReviewPrompt(inputs: MonthlyReviewInputs) {
   const weightChangePercent = ((weightChange / inputs.startingWeight) * 100).toFixed(1);
 
   return `${MASTER_META_PROMPT}
+
+PROMPT_VERSION: ${MONTHLY_REVIEW_PROMPT_VERSION}
 
 You are now in PHASE 5 — MONTHLY REVIEW & BODY TRENDS.
 

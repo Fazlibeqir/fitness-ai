@@ -2,10 +2,14 @@ import * as Notifications from "expo-notifications";
 import { supabase } from "./supabase";
 import { buildWeeklyReviewPrompt } from "../prompts/weeklyReview.prompt";
 import { buildMonthlyReviewPrompt } from "../prompts/monthlyReview.prompt";
-import { callOpenRouter } from "./openrouter";
+import { buildYearlyReviewPrompt } from "../prompts/yearlyReview.prompt";
+import { YEARLY_REVIEW_PROMPT_VERSION } from "../prompts/versions";
+import { callOpenRouter, callStructuredOpenRouter } from "./openrouter";
 import { extractJson } from "../utils/json";
 import { calculateFatigueIndex } from "../utils/fatigue";
-import { scheduleWeeklyReviewNotification, scheduleMonthlyReviewNotification, scheduleSessionReminders } from "./notifications";
+import { recordAIReviewSnapshot } from "./history";
+import { validateYearlyReview } from "../utils/ai-validation";
+import { scheduleWeeklyReviewNotification, scheduleMonthlyReviewNotification, scheduleSessionReminders, scheduleYearlyReviewNotification } from "./notifications";
 
 /**
  * Handle notification-triggered weekly review
@@ -344,6 +348,102 @@ export async function handleMonthlyReviewNotification() {
 }
 
 /**
+ * Handle notification-triggered yearly review
+ */
+export async function handleYearlyReviewNotification() {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      console.log("⚠️ No user logged in for yearly review");
+      return;
+    }
+
+    console.log("🔄 Auto-running yearly review...");
+
+    const yearStart = new Date(new Date().getFullYear(), 0, 1);
+    const yearStartStr = yearStart.toISOString().slice(0, 10);
+
+    const [{ data: profile }, { data: weeklyReviews }, { data: monthlyReviews }, { data: sessions }] = await Promise.all([
+      supabase.from("profiles").select("weight_kg").eq("user_id", user.id).single(),
+      supabase.from("weekly_reviews").select("week_start, review_json").eq("user_id", user.id).gte("week_start", yearStartStr).order("week_start", { ascending: true }),
+      supabase.from("monthly_reviews").select("month_start, review_json").eq("user_id", user.id).gte("month_start", yearStartStr).order("month_start", { ascending: true }),
+      supabase.from("session_logs").select("start_time, state").eq("user_id", user.id).gte("start_time", yearStartStr).order("start_time", { ascending: true }),
+    ]);
+
+    const completedSessions = (sessions || []).filter((session) => session.state === "COMPLETED");
+    const activeWeeks = new Set(
+      completedSessions.map((session) => {
+        const date = new Date(session.start_time || "");
+        const week = new Date(date);
+        week.setDate(date.getDate() - date.getDay());
+        week.setHours(0, 0, 0, 0);
+        return week.toISOString().slice(0, 10);
+      })
+    ).size;
+
+    const averageAdherence = (weeklyReviews || []).length
+      ? (weeklyReviews || []).reduce((sum, review) => sum + (review.review_json?.weekly_summary?.adherence_percent || 0), 0) / (weeklyReviews || []).length
+      : 0;
+
+    const strengthTrend = deriveTrend((monthlyReviews || []).map((review) => review.review_json?.monthly_summary?.strength_trend || "stable"));
+    const fatigueTrend = deriveTrend((monthlyReviews || []).map((review) => review.review_json?.monthly_summary?.fatigue_trend || "stable"));
+
+    const sortedMonths = (monthlyReviews || []).map((entry) => ({
+      month: new Date(`${entry.month_start}T00:00:00`),
+      review: entry.review_json,
+    }));
+
+    const bestMonths = sortedMonths
+      .filter((entry) => entry.review?.monthly_summary?.adherence_trend === "up")
+      .map((entry) => monthNames[entry.month.getMonth()]);
+    const weakestMonths = sortedMonths
+      .filter((entry) => entry.review?.monthly_summary?.fatigue_trend === "up" || entry.review?.monthly_summary?.adherence_trend === "down")
+      .map((entry) => monthNames[entry.month.getMonth()]);
+
+    const prompt = buildYearlyReviewPrompt({
+      startWeight: profile?.weight_kg || 0,
+      currentWeight: profile?.weight_kg || 0,
+      totalSessionsCompleted: completedSessions.length,
+      totalActiveWeeks: activeWeeks,
+      averageAdherence,
+      strengthTrend,
+      fatigueTrend,
+      bestMonths: bestMonths.length ? bestMonths : monthNames.slice(0, 1),
+      weakestMonths: weakestMonths.length ? weakestMonths : monthNames.slice(0, 1),
+      monthlyReviews: (monthlyReviews || []).map((review) => review.review_json),
+      weeklyReviews: (weeklyReviews || []).map((review) => review.review_json),
+    });
+
+    const llmResponse = await callStructuredOpenRouter(prompt, undefined, 0.2);
+    const reviewData = validateYearlyReview(extractJson(llmResponse));
+
+    const yearStartDate = `${new Date().getFullYear()}-01-01`;
+    await supabase.from("yearly_reviews").upsert({
+      user_id: user.id,
+      year_start: yearStartDate,
+      review_json: reviewData,
+    }, { onConflict: "user_id,year_start" });
+
+    await recordAIReviewSnapshot({
+      user_id: user.id,
+      review_type: "yearly",
+      period_start: yearStartDate,
+      prompt_version: YEARLY_REVIEW_PROMPT_VERSION,
+      review_json: reviewData,
+    });
+
+    await scheduleYearlyReviewNotification();
+
+    console.log("✅ Yearly review completed");
+  } catch (error) {
+    console.error("❌ Error in auto yearly review:", error);
+  }
+}
+
+/**
  * Setup notification handlers
  */
 export function setupReviewNotificationHandlers() {
@@ -354,6 +454,8 @@ export function setupReviewNotificationHandlers() {
       handleWeeklyReviewNotification();
     } else if (data?.type === "monthly_review") {
       handleMonthlyReviewNotification();
+    } else if (data?.type === "yearly_review") {
+      handleYearlyReviewNotification();
     }
   });
 
@@ -364,6 +466,18 @@ export function setupReviewNotificationHandlers() {
       handleWeeklyReviewNotification();
     } else if (data?.type === "monthly_review") {
       handleMonthlyReviewNotification();
+    } else if (data?.type === "yearly_review") {
+      handleYearlyReviewNotification();
     }
   });
+}
+
+const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function deriveTrend(values: string[]) {
+  const up = values.filter((value) => value === "up").length;
+  const down = values.filter((value) => value === "down").length;
+  if (up > down) return "up";
+  if (down > up) return "down";
+  return "stable";
 }

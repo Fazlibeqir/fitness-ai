@@ -4,11 +4,14 @@ import { useState, useEffect } from "react";
 import { ScrollView, Text, View, TouchableOpacity, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { buildWeeklyReviewPrompt } from "../prompts/weeklyReview.prompt";
+import { WEEKLY_REVIEW_PROMPT_VERSION } from "../prompts/versions";
 import { callOpenRouter } from "../services/openrouter";
+import { recordAIReviewSnapshot } from "../services/history";
 import { supabase } from "../services/supabase";
 import { extractJson } from "../utils/json";
 import { calculateFatigueIndex } from "../utils/fatigue";
 import { scheduleWeeklyReviewNotification, scheduleSessionReminders } from "../services/notifications";
+import { validateWeeklyReview } from "../utils/ai-validation";
 
 export default function WeeklyReviewScreen() {
   const [loading, setLoading] = useState(false);
@@ -130,7 +133,7 @@ export default function WeeklyReviewScreen() {
       });
 
       const llmResponse = await callOpenRouter(prompt, undefined, 0.2);
-      const reviewData: WeeklyReview = extractJson(llmResponse);
+      const reviewData: WeeklyReview = validateWeeklyReview(extractJson(llmResponse));
 
       setReview(reviewData);
       setMsg("");
@@ -139,6 +142,14 @@ export default function WeeklyReviewScreen() {
       await supabase.from("weekly_reviews").insert({
         user_id: user.id,
         week_start: weekStartStr,
+        review_json: reviewData,
+      });
+
+      await recordAIReviewSnapshot({
+        user_id: user.id,
+        review_type: "weekly",
+        period_start: weekStartStr,
+        prompt_version: WEEKLY_REVIEW_PROMPT_VERSION,
         review_json: reviewData,
       });
     } catch (error: any) {

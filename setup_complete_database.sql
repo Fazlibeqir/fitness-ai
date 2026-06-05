@@ -335,6 +335,131 @@ CREATE POLICY "Users can update own progress"
 -- 7. AUTO-UPDATE TRIGGERS
 -- ============================================
 
+CREATE TABLE IF NOT EXISTS body_metrics_history (
+  id BIGSERIAL PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  weight_kg NUMERIC NOT NULL,
+  height_cm NUMERIC,
+  body_fat_percent NUMERIC,
+  muscle_mass_kg NUMERIC,
+  notes TEXT,
+  source TEXT NOT NULL DEFAULT 'system' CHECK (source IN ('onboarding', 'manual', 'monthly_review', 'system')),
+  recorded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_body_metrics_history_user_id ON body_metrics_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_body_metrics_history_recorded_at ON body_metrics_history(recorded_at);
+
+ALTER TABLE body_metrics_history ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view own body metrics" ON body_metrics_history;
+DROP POLICY IF EXISTS "Users can insert own body metrics" ON body_metrics_history;
+DROP POLICY IF EXISTS "Users can update own body metrics" ON body_metrics_history;
+
+CREATE POLICY "Users can view own body metrics"
+  ON body_metrics_history FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own body metrics"
+  ON body_metrics_history FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own body metrics"
+  ON body_metrics_history FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE TABLE IF NOT EXISTS nutrition_logs (
+  id BIGSERIAL PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  date DATE NOT NULL,
+  calories NUMERIC NOT NULL DEFAULT 0,
+  protein_g NUMERIC NOT NULL DEFAULT 0,
+  carbs_g NUMERIC NOT NULL DEFAULT 0,
+  fat_g NUMERIC NOT NULL DEFAULT 0,
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(user_id, date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_nutrition_logs_user_id ON nutrition_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_nutrition_logs_date ON nutrition_logs(date);
+
+ALTER TABLE nutrition_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view own nutrition logs" ON nutrition_logs;
+DROP POLICY IF EXISTS "Users can insert own nutrition logs" ON nutrition_logs;
+DROP POLICY IF EXISTS "Users can update own nutrition logs" ON nutrition_logs;
+
+CREATE POLICY "Users can view own nutrition logs"
+  ON nutrition_logs FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own nutrition logs"
+  ON nutrition_logs FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own nutrition logs"
+  ON nutrition_logs FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE TABLE IF NOT EXISTS ai_review_snapshots (
+  id BIGSERIAL PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  review_type TEXT NOT NULL CHECK (review_type IN ('weekly', 'monthly', 'yearly')),
+  period_start DATE NOT NULL,
+  period_end DATE,
+  prompt_version TEXT NOT NULL,
+  review_json JSONB NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_review_snapshots_user_id ON ai_review_snapshots(user_id);
+CREATE INDEX IF NOT EXISTS idx_ai_review_snapshots_period_start ON ai_review_snapshots(period_start);
+
+ALTER TABLE ai_review_snapshots ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view own review snapshots" ON ai_review_snapshots;
+DROP POLICY IF EXISTS "Users can insert own review snapshots" ON ai_review_snapshots;
+
+CREATE POLICY "Users can view own review snapshots"
+  ON ai_review_snapshots FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own review snapshots"
+  ON ai_review_snapshots FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE TABLE IF NOT EXISTS yearly_reviews (
+  id BIGSERIAL PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  year_start DATE NOT NULL,
+  review_json JSONB NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(user_id, year_start)
+);
+
+CREATE INDEX IF NOT EXISTS idx_yearly_reviews_user_id ON yearly_reviews(user_id);
+CREATE INDEX IF NOT EXISTS idx_yearly_reviews_year_start ON yearly_reviews(year_start);
+
+ALTER TABLE yearly_reviews ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view own yearly reviews" ON yearly_reviews;
+DROP POLICY IF EXISTS "Users can insert own yearly reviews" ON yearly_reviews;
+DROP POLICY IF EXISTS "Users can update own yearly reviews" ON yearly_reviews;
+
+CREATE POLICY "Users can view own yearly reviews"
+  ON yearly_reviews FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own yearly reviews"
+  ON yearly_reviews FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own yearly reviews"
+  ON yearly_reviews FOR UPDATE
+  USING (auth.uid() = user_id);
+
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN

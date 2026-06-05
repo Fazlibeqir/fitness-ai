@@ -1,6 +1,6 @@
 import { UserProfile, UserProgress } from "@/types";
 import { router } from "expo-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ScrollView, Text, View, TouchableOpacity, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "../../services/supabase";
@@ -71,11 +71,7 @@ export default function ProfileScreen() {
   const [progress, setProgress] = useState<UserProgress | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadProfile();
-  }, []);
-
-  const loadProfile = async () => {
+  const loadProfile = useCallback(async () => {
     try {
       const {
         data: { user },
@@ -146,7 +142,11 @@ export default function ProfileScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
 
   const getWeekNumber = (date: Date): number => {
     const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -310,6 +310,12 @@ export default function ProfileScreen() {
             onPress={() => router.push("/gym-setup")}
             icon="location"
             color="#34C759"
+          />
+          <Button
+            title="Yearly Review"
+            onPress={() => router.push("/yearly-review")}
+            icon="calendar"
+            color="#af52de"
           />
         </View>
       </View>

@@ -46,14 +46,6 @@ const getWeekStart = (date: Date = new Date()): Date => {
   return weekStart;
 };
 
-// Helper function to get week end (Saturday)
-const getWeekEnd = (date: Date = new Date()): Date => {
-  const weekEnd = new Date(date);
-  weekEnd.setDate(date.getDate() + (6 - date.getDay()));
-  weekEnd.setHours(23, 59, 59, 999);
-  return weekEnd;
-};
-
 export default function PlanScreen() {
   const [plan, setPlan] = useState<CompleteWeeklyPlan | null>(null);
   const [loading, setLoading] = useState(true);
@@ -70,7 +62,6 @@ export default function PlanScreen() {
                 weekStart.toISOString().slice(0, 10), `(${dayNames[weekStart.getDay()]})`);
     return weekStart;
   }, []);
-  const currentWeekEnd = useMemo(() => getWeekEnd(), []);
 
   const loadPlan = useCallback(async () => {
     try {

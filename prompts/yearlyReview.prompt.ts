@@ -60,7 +60,7 @@ ${inputs.monthlyReviews.map((review) => `
 - ${review.monthly_summary?.fitness_fact || "Monthly review"} | Strength: ${review.monthly_summary?.strength_trend || "stable"} | Adherence: ${review.monthly_summary?.adherence_trend || "stable"} | Fatigue: ${review.monthly_summary?.fatigue_trend || "stable"}
 `).join("")}
 
-Recent Weekly Reviews:
+Recent Weekly Reviews (Last 12 Weeks):
 ${inputs.weeklyReviews.slice(-12).map((review, index) => `
 - Week ${index + 1}: Adherence ${review.weekly_summary?.adherence_percent || 0}% | Fatigue ${review.weekly_summary?.fatigue_index || 0}
 `).join("")}

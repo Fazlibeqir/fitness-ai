@@ -32,7 +32,7 @@ export async function callOpenRouter(
       ]
     : [{ role: "user", content: prompt }];
 
-  let lastError: unknown = null;
+  let finalError: unknown = null;
 
   for (const model of models) {
     try {
@@ -64,14 +64,14 @@ export async function callOpenRouter(
 
       return json.choices[0].message.content;
     } catch (error: any) {
-      lastError = error;
+      finalError = error;
       if (error?.message?.includes("Network request failed")) {
         throw new Error("Network error: Check your internet connection and try again");
       }
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error("OpenRouter request failed");
+  throw finalError instanceof Error ? finalError : new Error("OpenRouter request failed");
 }
 
 // Legacy function for backward compatibility
@@ -79,6 +79,10 @@ export async function callWeeklyPlanner(prompt: string) {
   return callOpenRouter(prompt);
 }
 
+/**
+ * Convenience wrapper for structured planning/review flows that should use
+ * the configured fallback model list without overriding model selection.
+ */
 export async function callStructuredOpenRouter(
   prompt: string,
   systemPrompt?: string,

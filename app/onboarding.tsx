@@ -139,7 +139,8 @@ export default function Onboarding() {
       const prompt = buildWeeklyPlanPrompt(profile);
       llmResponse = await callWeeklyPlanner(prompt);
       plan = validateWeeklyPlan(extractJson(llmResponse));
-    } catch {
+    } catch (error) {
+      console.error("Error generating weekly plan:", error);
       try {
         const repairPrompt = `
 The previous output was INVALID JSON.

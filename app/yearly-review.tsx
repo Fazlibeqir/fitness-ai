@@ -8,18 +8,31 @@ import { callStructuredOpenRouter } from "../services/openrouter";
 import { supabase } from "../services/supabase";
 import { extractJson } from "../utils/json";
 import { validateYearlyReview } from "../utils/ai-validation";
+import { MONTH_NAMES, calculateActiveWeeks, deriveTrend } from "../utils/yearly";
 import { recordAIReviewSnapshot, recordBodyMetricsSnapshot } from "../services/history";
 import { scheduleYearlyReviewNotification } from "../services/notifications";
 import { ActionCard, EmptyState, LoadingState, MetricCard, ScreenCard, SectionTitle, StatusBadge } from "@/components/ui/fitness";
 
-const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+interface YearlyStats {
+  startWeight: number;
+  currentWeight: number;
+  totalSessionsCompleted: number;
+  totalActiveWeeks: number;
+  averageAdherence: number;
+  strengthTrend: "up" | "stable" | "down";
+  fatigueTrend: "up" | "stable" | "down";
+  bestMonths: string[];
+  weakestMonths: string[];
+  weeklyReviews: any[];
+  monthlyReviews: any[];
+}
 
 export default function YearlyReviewScreen() {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [review, setReview] = useState<YearlyReview | null>(null);
   const [message, setMessage] = useState("Loading yearly progress...");
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<YearlyStats | null>(null);
 
   const yearStart = useMemo(() => {
     const date = new Date();
@@ -39,24 +52,30 @@ export default function YearlyReviewScreen() {
         return;
       }
 
-      const [{ data: profile }, { data: weeklyReviews }, { data: monthlyReviews }, { data: sessions }] =
-        await Promise.all([
-          supabase.from("profiles").select("weight_kg").eq("user_id", user.id).single(),
-          supabase.from("weekly_reviews").select("week_start, review_json").eq("user_id", user.id).gte("week_start", yearStart.toISOString().slice(0, 10)).order("week_start", { ascending: true }),
-          supabase.from("monthly_reviews").select("month_start, review_json").eq("user_id", user.id).gte("month_start", yearStart.toISOString().slice(0, 10)).order("month_start", { ascending: true }),
-          supabase.from("session_logs").select("start_time, state, duration_minutes").eq("user_id", user.id).gte("start_time", yearStart.toISOString()).order("start_time", { ascending: true }),
-        ]);
+      const [
+        { data: profile },
+        { data: bodyMetrics },
+        { data: weeklyReviews },
+        { data: monthlyReviews },
+        { data: sessions },
+      ] = await Promise.all([
+        supabase.from("profiles").select("weight_kg").eq("user_id", user.id).single(),
+        supabase
+          .from("body_metrics_history")
+          .select("weight_kg, recorded_at")
+          .eq("user_id", user.id)
+          .gte("recorded_at", yearStart.toISOString())
+          .order("recorded_at", { ascending: true })
+          .limit(1),
+        supabase.from("weekly_reviews").select("week_start, review_json").eq("user_id", user.id).gte("week_start", yearStart.toISOString().slice(0, 10)).order("week_start", { ascending: true }),
+        supabase.from("monthly_reviews").select("month_start, review_json").eq("user_id", user.id).gte("month_start", yearStart.toISOString().slice(0, 10)).order("month_start", { ascending: true }),
+        supabase.from("session_logs").select("start_time, state, duration_minutes").eq("user_id", user.id).gte("start_time", yearStart.toISOString()).order("start_time", { ascending: true }),
+      ]);
+
+      const firstBodyMetric = bodyMetrics?.[0];
 
       const completedSessions = (sessions || []).filter((session) => session.state === "COMPLETED");
-      const activeWeeks = new Set(
-        completedSessions.map((session) => {
-          const date = new Date(session.start_time || "");
-          const week = new Date(date);
-          week.setDate(date.getDate() - date.getDay());
-          week.setHours(0, 0, 0, 0);
-          return week.toISOString().slice(0, 10);
-        })
-      ).size;
+      const activeWeeks = calculateActiveWeeks(completedSessions);
 
       const weeklyAdherence = (weeklyReviews || []).map((review) => review.review_json?.weekly_summary?.adherence_percent || 0);
       const averageAdherence = weeklyAdherence.length
@@ -75,21 +94,21 @@ export default function YearlyReviewScreen() {
 
       const bestMonths = sortedMonths
         .filter((entry) => entry.review?.monthly_summary?.adherence_trend === "up")
-        .map((entry) => monthNames[entry.month.getMonth()]);
+        .map((entry) => MONTH_NAMES[entry.month.getMonth()]);
       const weakestMonths = sortedMonths
         .filter((entry) => entry.review?.monthly_summary?.fatigue_trend === "up" || entry.review?.monthly_summary?.adherence_trend === "down")
-        .map((entry) => monthNames[entry.month.getMonth()]);
+        .map((entry) => MONTH_NAMES[entry.month.getMonth()]);
 
       setStats({
-        startWeight: profile?.weight_kg || 0,
+        startWeight: firstBodyMetric?.weight_kg ?? profile?.weight_kg ?? 0,
         currentWeight: profile?.weight_kg || 0,
         totalSessionsCompleted: completedSessions.length,
         totalActiveWeeks: activeWeeks,
         averageAdherence,
         strengthTrend,
         fatigueTrend,
-        bestMonths: bestMonths.length ? bestMonths : monthNames.slice(0, 1),
-        weakestMonths: weakestMonths.length ? weakestMonths : monthNames.slice(0, 1),
+        bestMonths: bestMonths.length ? bestMonths : MONTH_NAMES.slice(0, 1),
+        weakestMonths: weakestMonths.length ? weakestMonths : MONTH_NAMES.slice(0, 1),
         weeklyReviews: weeklyReviews || [],
         monthlyReviews: monthlyReviews || [],
       });
@@ -269,12 +288,4 @@ export default function YearlyReviewScreen() {
       {!!message && <Text style={{ color: "#9ca3af", marginTop: 6 }}>{message}</Text>}
     </ScrollView>
   );
-}
-
-function deriveTrend(values: string[]) {
-  const up = values.filter((value) => value === "up").length;
-  const down = values.filter((value) => value === "down").length;
-  if (up > down) return "up";
-  if (down > up) return "down";
-  return "stable";
 }

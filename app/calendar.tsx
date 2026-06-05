@@ -39,7 +39,8 @@ export default function CalendarScreen() {
         const cals = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
         setCalendars(cals.filter((cal) => cal.allowsModifications));
       }
-    } catch {
+    } catch (error) {
+      console.error("Error checking permissions:", error);
       Alert.alert("Error", "Failed to request calendar permission");
     }
   };
